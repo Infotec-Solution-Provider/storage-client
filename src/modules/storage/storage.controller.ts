@@ -56,12 +56,11 @@ class StorageController {
         !file ||
         typeof file.name !== "string" ||
         typeof file.type !== "string" ||
-        typeof file.size !== "number" ||
         typeof file.path !== "string"
       ) {
         return res.status(400).json({
           message:
-            "File requires: name (string), type (string), size (number), path (string). Optional: id, date",
+            "File requires: name (string), type (string), path (string). Optional: id, date",
         });
       }
 

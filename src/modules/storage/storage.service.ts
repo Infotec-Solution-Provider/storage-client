@@ -1,6 +1,7 @@
 import { Logger } from "@in.pulse-crm/utils";
 import "dotenv/config";
 import { nanoid } from "nanoid";
+import fs from "node:fs/promises";
 import path from "node:path";
 import prisma from "../../../prisma";
 
@@ -93,25 +94,38 @@ class StorageService {
 
   /**
    * Registra um arquivo já existente (legado) apenas gravando metadados no banco.
-   * Não move nem copia arquivos; assume que 'path' já é válido.
+   * Valida se o arquivo existe no path fornecido e obtém o tamanho real.
    */
   public async registerExistingFile(file: {
     id?: string;
     name: string;
     type: string;
-    size: number;
     path: string;
     date?: Date | string;
   }) {
+    // Valida se o arquivo existe e obtém o tamanho real
+    const fullPath = path.join(BASE_PATH, file.path);
+    let stats;
+    try {
+      stats = await fs.stat(fullPath);
+    } catch (error) {
+      throw new Error(`File not found at path: ${file.path}`);
+    }
+
+    if (!stats.isFile()) {
+      throw new Error(`Path is not a file: ${file.path}`);
+    }
+
     const id = file.id || (await this.getUniqueId());
     const date = file.date ? new Date(file.date) : new Date();
+    const size = stats.size;
 
     const created = await prisma.file.create({
       data: {
         id,
         name: file.name,
         type: file.type,
-        size: file.size,
+        size,
         path: file.path,
         date,
       },
