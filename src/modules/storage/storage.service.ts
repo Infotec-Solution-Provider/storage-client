@@ -92,6 +92,36 @@ class StorageService {
   }
 
   /**
+   * Registra um arquivo já existente (legado) apenas gravando metadados no banco.
+   * Não move nem copia arquivos; assume que 'path' já é válido.
+   */
+  public async registerExistingFile(file: {
+    id?: string;
+    name: string;
+    type: string;
+    size: number;
+    path: string;
+    date?: Date | string;
+  }) {
+    const id = file.id || (await this.getUniqueId());
+    const date = file.date ? new Date(file.date) : new Date();
+
+    const created = await prisma.file.create({
+      data: {
+        id,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        path: file.path,
+        date,
+      },
+      omit: { path: true },
+    });
+
+    return created;
+  }
+
+  /**
    * Registra arquivos já existentes (legados) apenas gravando metadados no banco.
    * Não move nem copia arquivos; assume que 'path' já é válido.
    */

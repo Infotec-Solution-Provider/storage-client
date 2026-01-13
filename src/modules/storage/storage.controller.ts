@@ -9,7 +9,8 @@ class StorageController {
   constructor(router: Router) {
     router.post("/", upload.single("file"), this.handleUpload);
     router.get("/:fileId", this.handleDownload);
-    router.post("/bulk", this.handleBulkInsert); // nova rota
+    router.post("/register", this.handleRegister);
+    router.post("/bulk", this.handleBulkInsert);
   }
 
   private handleUpload = async (req: Request, res: Response) => {
@@ -42,6 +43,32 @@ class StorageController {
       const fileStream = await StorageService.download({ fileId });
 
       return fileStream.pipe(res);
+    } catch (error: any) {
+      return res.status(500).json({ message: error?.message });
+    }
+  };
+
+  private handleRegister = async (req: Request, res: Response) => {
+    try {
+      const file = req.body;
+
+      if (
+        !file ||
+        typeof file.name !== "string" ||
+        typeof file.type !== "string" ||
+        typeof file.size !== "number" ||
+        typeof file.path !== "string"
+      ) {
+        return res.status(400).json({
+          message:
+            "File requires: name (string), type (string), size (number), path (string). Optional: id, date",
+        });
+      }
+
+      Logger.info(`Registering existing file: ${file.name}`);
+      const result = await StorageService.registerExistingFile(file);
+
+      return res.status(201).json(result);
     } catch (error: any) {
       return res.status(500).json({ message: error?.message });
     }
