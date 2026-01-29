@@ -3,7 +3,7 @@ import "dotenv/config";
 import { nanoid } from "nanoid";
 import fs from "node:fs/promises";
 import path from "node:path";
-import prisma from "../../../prisma";
+import prisma from "../../prisma";
 
 import LocalStorage from "./storages/local.storage";
 import Storage from "./storages/storage";
