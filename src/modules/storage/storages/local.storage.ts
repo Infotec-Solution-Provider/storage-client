@@ -10,6 +10,23 @@ class LocalStorage implements Storage {
         this.basePath = storagePath;
     }
 
+    /**
+     * Normalizes a file path to ensure it's relative to basePath
+     * and returns the normalized absolute path
+     */
+    private normalizePath(filePath: string): string {
+        let normalized = path.resolve(filePath);
+        const basePath = path.resolve(this.basePath);
+
+        // If path is already absolute and not within basePath, use it as-is
+        // Otherwise, ensure it's relative to basePath
+        if (!normalized.startsWith(basePath) && !path.isAbsolute(filePath)) {
+            normalized = path.join(basePath, filePath);
+        }
+
+        return normalized;
+    }
+
     public async upload(options: UploadFileOptions): Promise<string> {
         try {
             const { file, folder } = options;
@@ -19,7 +36,9 @@ class LocalStorage implements Storage {
             await fs.mkdir(path.dirname(filePath), { recursive: true });
             await fs.writeFile(filePath, file.buffer);
 
-            return filePath;
+            // Store relative path to ensure portability
+            const relativePath = path.relative(this.basePath, filePath);
+            return relativePath;
         } catch (err: unknown) {
             if (err instanceof Error) {
                 throw new Error(`Failed to upload file: ${err.message}`, { cause: err });
@@ -31,7 +50,10 @@ class LocalStorage implements Storage {
 
     public async download(options: DownloadFileOptions): Promise<NodeJS.ReadableStream> {
         try {
-            const filePath = options.sourcePath;
+            let filePath = this.normalizePath(options.sourcePath);
+
+            // Validate file exists before creating stream
+            await fs.access(filePath);
 
             return createReadStream(filePath);
         } catch (err: unknown) {
