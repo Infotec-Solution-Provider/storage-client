@@ -85,8 +85,6 @@ class WABAService {
         form.append('file', fileStream, {
             contentType: file.type,
             filename: file.name,
-            knownLength: file.size,
-            filepath: file.path
         });
 
         form.append("type", file.type);
