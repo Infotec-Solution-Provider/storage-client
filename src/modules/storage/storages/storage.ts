@@ -2,18 +2,18 @@ import { File } from "../../../../generated/prisma";
 
 export type FileOutput = Omit<File, 'path'>;
 
-export interface UploadFileOptions {
+export interface WriteFileOptions {
     file: Express.Multer.File;
     folder: string;
 }
 
-export interface DownloadFileOptions {
+export interface ReadFileOptions {
     sourcePath: string;
 }
 
 abstract class Storage {
-    abstract upload(options: UploadFileOptions): Promise<string>;
-    abstract download(options: DownloadFileOptions): Promise<NodeJS.ReadableStream>;
+    abstract writeFile(options: WriteFileOptions): Promise<string>;
+    abstract readFile(options: ReadFileOptions): Promise<NodeJS.ReadableStream>;
 }
 
 export default Storage;

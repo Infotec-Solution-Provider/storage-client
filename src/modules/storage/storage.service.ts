@@ -7,17 +7,18 @@ import prisma from "../../prisma";
 
 import LocalStorage from "./storages/local.storage";
 import Storage from "./storages/storage";
+import { NotFoundError } from "@rgranatodutra/http-errors";
 
-interface UploadFileOptions {
+interface WriteFileOptions {
   file: Express.Multer.File;
   folder: string;
 }
 
-interface DownloadFileOptions {
+interface ReadFileOptions {
   fileId: string;
 }
 
-interface SaveFileOnDatabaseOptions {
+interface SaveFileMetadataOptions {
   id: string;
   file: Express.Multer.File;
   path: string;
@@ -30,17 +31,17 @@ const LOCAL_STORAGE = new LocalStorage(BASE_PATH);
 Logger.info(`Storage base path: ${BASE_PATH}`);
 
 class StorageService {
-  constructor(private storage: Storage) {}
+  constructor(private storage: Storage) { }
 
-  public async upload({ file, folder }: UploadFileOptions) {
+  public async upload({ file, folder }: WriteFileOptions) {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
 
     const uniqueId = await this.getUniqueId();
     const filePath = `/${folder}/${year}/${month}/${uniqueId}`;
-    const savePath = await this.storage.upload({ file, folder: filePath });
-    const fileData = await this.saveFileMetadataOnDatabase({
+    const savePath = await this.storage.writeFile({ file, folder: filePath });
+    const fileData = await this.saveFileMetadata({
       id: uniqueId,
       file,
       path: savePath,
@@ -50,13 +51,12 @@ class StorageService {
     return fileData;
   }
 
-  public async download({ fileId }: DownloadFileOptions) {
+  public async readFile({ fileId }: ReadFileOptions) {
     const file = await prisma.file.findUnique({
       where: { id: fileId },
     });
-    if (!file) throw new Error("File not found");
-
-    const fileStream = await this.storage.download({ sourcePath: file.path });
+    if (!file) throw new NotFoundError(`File with ID ${fileId} not found in database`);
+    const fileStream = await this.storage.readFile({ sourcePath: file.path });
 
     return fileStream;
   }
@@ -71,12 +71,12 @@ class StorageService {
     return duplicated ? await this.getUniqueId() : id;
   }
 
-  private async saveFileMetadataOnDatabase({
+  private async saveFileMetadata({
     id,
     file,
     path,
     date,
-  }: SaveFileOnDatabaseOptions) {
+  }: SaveFileMetadataOptions) {
     return await prisma.file.create({
       data: {
         id,
@@ -92,10 +92,6 @@ class StorageService {
     });
   }
 
-  /**
-   * Registra um arquivo já existente (legado) apenas gravando metadados no banco.
-   * Valida se o arquivo existe no path fornecido e obtém o tamanho real.
-   */
   public async registerExistingFile(file: {
     id?: string;
     name: string;
@@ -135,10 +131,6 @@ class StorageService {
     return created;
   }
 
-  /**
-   * Registra arquivos já existentes (legados) apenas gravando metadados no banco.
-   * Não move nem copia arquivos; assume que 'path' já é válido.
-   */
   public async registerExistingFiles(
     files: Array<{
       id?: string;

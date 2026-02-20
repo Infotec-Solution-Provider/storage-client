@@ -2,6 +2,7 @@ import { Logger } from "@in.pulse-crm/utils";
 import { Request, Response, Router } from "express";
 import upload from "../../middlewares/multer.middleware";
 import StorageService from "./storage.service";
+import { NotFoundError } from "@rgranatodutra/http-errors";
 
 const storageRoutes = Router();
 
@@ -27,6 +28,7 @@ class StorageController {
 
       return res.status(201).json(result);
     } catch (error: any) {
+      Logger.error("Error uploading file", error);
       return res.status(500).json({ message: error?.message });
     }
   };
@@ -40,10 +42,15 @@ class StorageController {
       }
 
       Logger.info(`Downloading file with ID: ${fileId}`);
-      const fileStream = await StorageService.download({ fileId });
+      const fileStream = await StorageService.readFile({ fileId });
 
       return fileStream.pipe(res);
     } catch (error: any) {
+      Logger.error("Error downloading file", error);
+      if (error instanceof NotFoundError) {
+        return res.status(404).json({ message: error.message });
+      }
+
       return res.status(500).json({ message: error?.message });
     }
   };
@@ -69,6 +76,10 @@ class StorageController {
 
       return res.status(201).json(result);
     } catch (error: any) {
+      Logger.error("Error registering existing file", error);
+      if (error instanceof NotFoundError) {
+        return res.status(404).json({ message: error.message });
+      }
       return res.status(500).json({ message: error?.message });
     }
   };
@@ -105,6 +116,7 @@ class StorageController {
 
       return res.status(201).json(result);
     } catch (error: any) {
+      Logger.error("Error bulk registering existing files", error);
       return res.status(500).json({ message: error?.message });
     }
   };

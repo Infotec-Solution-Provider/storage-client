@@ -1,7 +1,10 @@
-import "dotenv/config";
 import axios, { AxiosInstance } from "axios";
-import storageService from "../storage/storage.service";
+import "dotenv/config";
+import FormData from "form-data";
 import { extension } from "mime-types";
+import prisma from "../../prisma";
+import storageService from "../storage/storage.service";
+import { NotFoundError } from "@rgranatodutra/http-errors";
 
 interface GetMediaURLResponse {
     url: string,
@@ -12,9 +15,7 @@ interface GetMediaURLResponse {
     messaging_product: string
 }
 
-const BASE_GRAPH_API_URL = 'https://graph.facebook.com/v16.0';
-// Enable verbose debug logs for media downloads via env DEBUG_WABA=true
-const DEBUG_WABA: boolean = (process.env['DEBUG_WABA'] || '').toLowerCase() === 'true';
+const GRAPH_API_URL = 'https://graph.facebook.com/v16.0';
 
 // Resumo compacto de erros Axios
 const AXIOS_BODY_PREVIEW = 400;
@@ -58,15 +59,44 @@ function formatAxiosError(err: unknown): string {
 
 class WABAService {
     private api: AxiosInstance;
+    private phoneId: string;
 
-    constructor(authToken: string) {
+    constructor(authToken: string, phoneId: string) {
         this.api = axios.create({
-            baseURL: BASE_GRAPH_API_URL,
+            baseURL: GRAPH_API_URL,
             timeout: 10000,
         });
 
         console.log("WABA Token:", authToken);
         this.api.defaults.headers["Authorization"] = `Bearer ${authToken}`;
+        this.phoneId = phoneId;
+    }
+
+    public async uploadMedia(fileId: string) {
+        const file = await prisma.file.findUnique({
+            where: { id: fileId },
+        });
+
+        if (!file) throw new NotFoundError(`File with ID ${fileId} not found in database`);
+
+        const fileStream = await storageService.readFile({ fileId });
+
+        const form = new FormData();
+        form.append('file', fileStream, {
+            contentType: file.type,
+            filename: file.name,
+            knownLength: file.size,
+            filepath: file.path
+        });
+
+        form.append("type", file.type);
+        form.append("messaging_product", "whatsapp");
+
+        const response = await this.api.post<{ id: string }>(`/${this.phoneId}/media`, form, {
+            headers: form.getHeaders()
+        });
+
+        return response.data.id;
     }
 
     public async downloadMediaAndStore(id: string, filename?: string) {
@@ -77,30 +107,12 @@ class WABAService {
     }
 
     public async downloadMedia(id: string, filename?: string) {
-        const startedAt = Date.now();
-        if (DEBUG_WABA) console.debug(`[WABA] downloadMedia:start id=${id} filename=${filename ?? '(auto)'}`);
-
         try {
             const data = await this.fetchMediaMetadata(id);
-            let urlHost = '';
-            try { urlHost = new URL(data.url).host; } catch { /* ignore */ }
-
-            if (DEBUG_WABA) {
-                console.debug(`[WABA] downloadMedia:metadata id=${id} mime=${data.mime_type} size=${data.file_size} sha256=${(data.sha256 || '').slice(0, 8)}… host=${urlHost}`);
-                console.debug(`[WABA] downloadMedia:requesting-bytes id=${id} host=${urlHost}`);
-            }
-
             const response = await this.api.get(data.url, { responseType: 'arraybuffer' });
-
-            if (DEBUG_WABA) {
-                const byteLen = (response.data as ArrayBuffer)?.byteLength ?? 0;
-                console.debug(`[WABA] downloadMedia:received id=${id} status=${response.status} bytes=${byteLen}`);
-            }
 
             const ext = extension(data.mime_type);
             filename = filename || `${id}.${ext || 'bin'}`;
-
-            if (DEBUG_WABA) console.debug(`[WABA] downloadMedia:resolved-filename id=${id} filename=${filename}`);
 
             const file: Express.Multer.File = {
                 buffer: Buffer.from(response.data),
@@ -115,12 +127,9 @@ class WABAService {
                 encoding: '7bit'
             }
 
-            if (DEBUG_WABA) console.debug(`[WABA] downloadMedia:done id=${id} size=${file.size} mime=${file.mimetype} elapsedMs=${Date.now() - startedAt}`);
-
             return file;
         } catch (err: any) {
             const msg = formatAxiosError(err);
-            if (DEBUG_WABA) console.error(`[WABA] downloadMedia:error id=${id} ${msg}`);
             throw new Error(`Failed to download media: ${msg}`);
         }
     }
@@ -131,10 +140,12 @@ class WABAService {
             return response.data;
         } catch (err: unknown) {
             const msg = formatAxiosError(err);
-            if (DEBUG_WABA) console.error(`[WABA] fetchMediaMetadata:error id=${id} ${msg}`);
             throw new Error(`Failed to get media URL: ${msg}`);
         }
     }
 }
 
-export default new WABAService(process.env['WABA_TOKEN'] || '');
+const token = process.env['WABA_TOKEN'] || '';
+const phoneId = process.env['WABA_PHONE_ID'] || '';
+
+export default new WABAService(token, phoneId);
