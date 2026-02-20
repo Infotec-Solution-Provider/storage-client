@@ -90,12 +90,6 @@ class WABAService {
         form.append("type", file.type);
         form.append("messaging_product", "whatsapp");
 
-        console.log({
-            mimeType: file.type,
-            filename: file.name,
-            size: file.size,
-        })
-
         const response = await this.api.post<{ id: string }>(`/${this.phoneId}/media`, form, {
             headers: form.getHeaders()
         }).catch(err => {
