@@ -92,7 +92,9 @@ class WABAService {
 
         const response = await this.api.post<{ id: string }>(`/${this.phoneId}/media`, form, {
             headers: form.getHeaders()
-        });
+        }).catch(err => {
+            throw new Error(`Failed to upload media: ${formatAxiosError(err)}`);
+        })
 
         return response.data.id;
     }
