@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --transpile-only --respawn --ignore-watch node_modules ./src/app.ts",
     "start": "node ./dist/app.js",
-    "build": "npx tsc"
+    "build": "tsc"
   },
   "author": "Renan G. Dutra <r.granatodutra@gmail.com>",
   "license": "ISC",

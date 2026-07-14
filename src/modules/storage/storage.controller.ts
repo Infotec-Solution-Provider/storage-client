@@ -9,10 +9,108 @@ const storageRoutes = Router();
 class StorageController {
   constructor(router: Router) {
     router.post("/", upload.single("file"), this.handleUpload);
+    router.post("/chunks/init", this.handleInitChunkUpload);
+    router.post("/chunks/:uploadId", upload.single("chunk"), this.handleUploadChunk);
+    router.post("/chunks/:uploadId/complete", this.handleCompleteChunkUpload);
     router.get("/:fileId", this.handleDownload);
     router.post("/register", this.handleRegister);
     router.post("/bulk", this.handleBulkInsert);
   }
+
+  private handleInitChunkUpload = async (req: Request, res: Response) => {
+    try {
+      const { folder = "public", fileName, fileType, totalSize, totalChunks } = req.body;
+
+      if (
+        typeof folder !== "string" ||
+        typeof fileName !== "string" ||
+        typeof fileType !== "string"
+      ) {
+        return res.status(400).json({
+          message: "folder, fileName and fileType are required",
+        });
+      }
+
+      const parsedTotalSize = Number(totalSize);
+      const parsedTotalChunks = Number(totalChunks);
+
+      if (!Number.isFinite(parsedTotalSize) || parsedTotalSize <= 0) {
+        return res.status(400).json({ message: "totalSize must be a number greater than 0" });
+      }
+
+      if (!Number.isInteger(parsedTotalChunks) || parsedTotalChunks <= 0) {
+        return res.status(400).json({ message: "totalChunks must be an integer greater than 0" });
+      }
+
+      const result = await StorageService.initChunkUpload({
+        folder,
+        fileName,
+        fileType,
+        totalSize: parsedTotalSize,
+        totalChunks: parsedTotalChunks,
+      });
+
+      return res.status(201).json(result);
+    } catch (error: any) {
+      Logger.error("Error initializing chunk upload", error);
+      return res.status(500).json({ message: error?.message });
+    }
+  };
+
+  private handleUploadChunk = async (req: Request, res: Response) => {
+    try {
+      const { uploadId } = req.params;
+      const { chunkIndex, totalChunks } = req.body;
+      const chunk = req.file;
+
+      if (!uploadId) {
+        return res.status(400).json({ message: "uploadId is required" });
+      }
+
+      if (!chunk) {
+        return res.status(400).json({ message: "No chunk uploaded" });
+      }
+
+      const parsedChunkIndex = Number(chunkIndex);
+      const parsedTotalChunks = Number(totalChunks);
+
+      if (!Number.isInteger(parsedChunkIndex) || parsedChunkIndex < 0) {
+        return res.status(400).json({ message: "chunkIndex must be an integer >= 0" });
+      }
+
+      if (!Number.isInteger(parsedTotalChunks) || parsedTotalChunks <= 0) {
+        return res.status(400).json({ message: "totalChunks must be an integer greater than 0" });
+      }
+
+      const result = await StorageService.uploadChunk({
+        uploadId,
+        chunkIndex: parsedChunkIndex,
+        totalChunks: parsedTotalChunks,
+        chunk,
+      });
+
+      return res.status(200).json(result);
+    } catch (error: any) {
+      Logger.error("Error uploading chunk", error);
+      return res.status(500).json({ message: error?.message });
+    }
+  };
+
+  private handleCompleteChunkUpload = async (req: Request, res: Response) => {
+    try {
+      const { uploadId } = req.params;
+
+      if (!uploadId) {
+        return res.status(400).json({ message: "uploadId is required" });
+      }
+
+      const result = await StorageService.completeChunkUpload(uploadId);
+      return res.status(201).json(result);
+    } catch (error: any) {
+      Logger.error("Error completing chunk upload", error);
+      return res.status(500).json({ message: error?.message });
+    }
+  };
 
   private handleUpload = async (req: Request, res: Response) => {
     try {
