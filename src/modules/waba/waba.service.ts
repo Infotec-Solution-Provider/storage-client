@@ -67,7 +67,6 @@ class WABAService {
             timeout: 10000,
         });
 
-        console.log("WABA Token:", authToken);
         this.api.defaults.headers["Authorization"] = `Bearer ${authToken}`;
         this.phoneId = phoneId;
     }
