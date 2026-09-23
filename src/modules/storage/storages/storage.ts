@@ -1,4 +1,4 @@
-import { File } from "../../../../generated/prisma";
+import type { File } from "@prisma/client";
 
 export type FileOutput = Omit<File, 'path'>;
 
